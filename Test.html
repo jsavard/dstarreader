@@ -40,7 +40,7 @@ function msg(m) {
 }
 function cap(m) {
     "use strict";
-    document.getElementById('cap').innerHTML = m || 'Teaching Tool 0.0.06 of 13Apr2016 &copy; 2016 BKMcM.com';
+    document.getElementById('cap').innerHTML = m || 'Teaching Tool 0.0.07 of 14Apr2016 &copy; 2016 BKMcM.com';
 }
 function log(m) {
     "use strict";
@@ -128,8 +128,11 @@ function show() {
     "use strict";
         // Make the touch interface invisible until the user takes a manual action
         // This is an absolute requirement for iOS devices to enable sounds from a web page.
+    say('Welcome to DISTAR reader');
     document.getElementById('button').style.visibility = "hidden";
+    document.getElementById('button').style.position = "absolute";
     document.getElementById('hide').style.visibility = "visible";
+    document.getElementById('hide').style.position = "static";
 }
 ////////////////////////////////////////////////////////////////////////////////
 function highlight(id, state) {
@@ -197,6 +200,7 @@ function init() {    // Install the User Interface Event Handlers
     }
 
     initPlan();
+    initUsers();
     cap();
 }
 window.onload = init;
@@ -379,14 +383,22 @@ function squig(d) {
 
 }
 ////////////////////////////////////////////////////////////////////////////////
+// Synthesize an utterance if possible
+// If there is no speech capability, we just display the text and wait one second.
+// text may be of the form "printed form(spoken form)"
+// Also, random choices among options is possible with text / text / text form.
 function say(text, step) {
     "use strict";
-    var m = new SpeechSynthesisUtterance(),
+    var r = text.split('/'),
+        s = r[Math.floor(Math.random()*r.length)],
+        t = s.split('('),
+        m = new SpeechSynthesisUtterance(),
         voices = speechSynthesis.getVoices();
+    t[1] = t[1] || t[0];   // if no '(' then display and spoken are the same
     if (voices.length === 0) {
         setTimeout(function(){ teach(); }, 1000);    // Computers with no voice just show the text and press on
     } else {
-        m.text = text;
+        m.text = t[1];
         m.volume = 1.0;
         m.rate = 1.0;
         m.pitch = 1.0;
@@ -394,7 +406,7 @@ function say(text, step) {
         speechSynthesis.cancel();   // without this you could get a REALLY long speech
         speechSynthesis.speak(m);
     }
-    msg(text);
+    msg(t[0]);
 }
 ////////////////////////////////////////////////////////////////////////////////
 function next(step) {
@@ -537,13 +549,59 @@ function designer() {
     "use strict";
     plan.current = makeCurrent(
     {cx:150, 
-     map:document.getElementById('designer').value,
+     map: document.getElementById('designer').value,
      scale:30, size:2, duration:0, color:"black"}
         );
     erase();
     squig();
 
 }
+var     record = {currentUser: 2, users:[2,8,4], lessons:[1,3,2]},
+        avatars = [ "1F467-1F3FB",   // Girls
+                    "1F467-1F3FC",
+                    "1F467-1F3FD",
+                    "1F467-1F3FE",
+                    "1F467-1F3FF",
+                    "1F467",
+                    "1F466-1F3FB",   // Boys
+                    "1F466-1F3FC",
+                    "1F466-1F3FD",
+                    "1F466-1F3FE",
+                    "1F466-1F3FF",
+                    "1F466"];
+////////////////////////////////////////////////////////////////////////////////
+function avatar(n) {
+    "use strict";
+    var v = document.getElementById('select'+n).value;
+    record.users[n] = v;    // This saves the setting of the selected user
+    document.getElementById('user'+n).innerHTML = '<img src="'+avatars[record.users[n]]+'.png" />';
+    cap(n+' is '+v);
+}
+////////////////////////////////////////////////////////////////////////////////
+function initUsers() {
+    "use strict";
+    var i,
+        g,
+        s,
+        u;
+
+    for (u=0; u<3; u+=1) {
+        for (i=0, s=''; i<avatars.length; i+=1) {
+            g = ('&#x'+avatars[i]+';').replace('-', ';&#x');    // Unicode Glyph works sometimes
+//            g = '<img src="'+avatars[i]+'.png" height=20 />';
+            s += '<option value="'+i+'" '+((record.users[u] === i)?'selected':'')+'>'+g+'</option>';
+        }
+        document.getElementById('select'+u).innerHTML = s;
+
+        for (i=1, s=''; i<=100; i+=1) {
+            s += '<option value="'+i+'" '+((record.lessons[u] === i)?'selected':'')+'>Lesson '+i+'</option>';
+        }
+        document.getElementById('lesson'+u).innerHTML = s;
+        
+        document.getElementById('user'+u).innerHTML = '<img src="'+avatars[record.users[u]]+'.png" />';
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 var plan = {};
@@ -585,10 +643,10 @@ function initPlan() {
             ],
             3: [
     {},
-    "your turn",
+    "now it is your turn",
     {cx:100, map:"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$#", scale:20, size:2, duration:0, color:"black"},
     {cx:100, map:"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$#", scale:20, size:15, touch:1, color:"green", finger:1},
-    "well done!",
+    "well done/very good/you are doing great/good job",
             ]
         },
         2: {
@@ -636,13 +694,59 @@ function initPlan() {
 </script>
 </head>
 <body>
-
 <h1><b> DISTAR<sup>&reg;</sup> Reader </b></h1>
-<center><button id="button" 
-                style="position: absolute;"
-                onclick="say('Welcome to DISTAR reader');show();">&nbsp;<br /> b e g i n <br />&nbsp; </button></center>
+
+<center><table id="button" width="60%" border=5 ><tr>
+    <td><center><table><tr>
+        <td>
+            <button id="user0" onclick="record.currentUser=0; show();"></button>
+        </td></tr>
+        <tr><td>
+            <select id="select0" onchange="avatar(0);">
+            </select><br />
+        </td></tr>
+        <tr><td>
+            <select id="lesson0">
+            </select>
+        </td></tr>
+    </table></center>
+    </td>
+
+
+    <td><center><table><tr>
+        <td>
+            <button id="user1" onclick="record.currentUser=1; show();"></button>
+        </td></tr>
+        <tr><td>
+            <select id="select1" onchange="avatar(1);">
+            </select><br />
+        </td></tr>
+        <tr><td>
+            <select id="lesson1">
+            </select>
+        </td></tr>
+    </table></center>
+    </td>
+
+
+    <td><center><table><tr>
+        <td>
+            <button id="user2" onclick="record.currentUser=2; show();"></button>
+        </td></tr>
+        <tr><td>
+            <select id="select2" onchange="avatar(2);">
+            </select><br />
+        </td></tr>
+        <tr><td>
+            <select id="lesson2">
+            </select>
+        </td></tr>
+    </table></center>
+    </td>
+    </tr>
+</table></center>
 <div id="log"></div>
-<div id="hide" style="visibility:hidden;">
+<div id="hide" style="visibility:hidden; position:absolute;">
 <table width="100%"><tr>
     <td width="15%" style="background-color:green;" onclick="plan.erase();plan.prev();"> &nbsp;<br /> BACK <br />&nbsp;</td>
     <td width="70%" style="text-align: center;"     onclick="plan.erase();teach(0);"> <div id="msg"></div>&nbsp;<br /><div id="info">&nbsp;</div></td>
@@ -653,12 +757,13 @@ function initPlan() {
     <br />
 <img id="finger" style="position: absolute; visibility:hidden; opacity: 0.4; " src="finger.png"></img>
     <canvas id='sq' height="600" width="600" ></canvas>
+<br />
+<input type="text" id='designer' oninput="designer();" />Use this area to test drawing maps.<br />
+<input type="text" id='speaker' oninput="say(document.getElementById('speaker').value);" />Use this area to test speech synthesis.<br />
 </center>
 </div>
 <center>
 <div id="cap" width="100%" style="background-color: orange">This WebApp Requires JavaScript to be Enabled.</div>
-<br />
-<input type="text" id='designer' oninput="designer();" >Use this area to test drawing maps.</textarea>
 </center>
 </body>
 </html>
