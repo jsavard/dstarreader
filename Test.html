@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no">
+    <title>DISTAR&reg; Reading Test</title>
+<style>
+    button {
+        font-family: Arial;
+        font-size:x-large;
+        font-weight: bold;
+        text-align: center;
+        border-radius: 10px;
+    }
+    h1 {
+        font-family: Arial;
+        font-size:x-large;
+        font-weight: bold;
+        text-align: center;
+    }
+    td {
+        font-family: Arial;
+        font-size:large;
+        font-weight: bold;
+        text-align: center;
+        background-clip: padding-box;
+        border-radius: 10px;
+    }
+    table {
+        background-color: wheat;
+    }
+    body {
+        background-color: gray;
+    }
+</style>
+<script>
+function msg(m) {
+    "use strict";
+    document.getElementById('msg').innerHTML = m;
+}
+function cap(m) {
+    "use strict";
+    document.getElementById('cap').innerHTML = m || 'Teaching Tool 0.0.07 of 14Apr2016 &copy; 2016 BKMcM.com';
+}
+function log(m) {
+    "use strict";
+    var l = document.getElementById('log'),
+        n = l.innerHTML;
+    l.innerHTML = n + '\n' + m;
+}
+function info(m) {
+    "use strict";
+    document.getElementById('info').innerHTML = m;
+}
+////////////////////////////////////////////////////////////////////////////////
+// Merge the elements of objects with the leftmost value taking precedence
+// Return a new object with a value for each element.
+// mergeObjects({a:1, b:2}, {a:21, b:22, c:23}, {a:31, d:34}) returns a new object
+//              {a:1, b:2, c:23, d:34}
+// In addition, if the element of the resulting object is a function, we evaluate
+// the function using the result object as the function's parameter. The value of the
+// function becomes the value of the element of the resulting object.
+// mergeObjects({a:1, b:2}, {c:function(w){return w.a+w.b;}}) returns a new object
+//              {a:1, b:2, c:3}
+function mergeObjects() {  // Return a new object with properties from args, leftmost takes precedence
+    "use strict";
+    var result = {},
+        args = (arguments.length === 1 ? [arguments[0]] : Array.apply(null, arguments)),
+        i;
+    for (i=0; i<args.length; i+=1) {
+        if (typeof args[i] === 'object') {
+            Object.getOwnPropertyNames(args[i]).forEach(
+                function(val){
+                    if (typeof result[val] === 'undefined') result[val] = args[i][val];
+                    if (typeof result[val] === 'function') {
+                        result[val] = result[val](result);
+                    }
+                }
+            );
+        }
+    }
+    return result;
+}
+////////////////////////////////////////////////////////////////////////////////
+// evaluateFunctions takes an object looks for any elements that are functions.
+// For these elements, The function is evaluated with the object as the only parameter.
+// The function result replaces the element value in the object
+// evaluateFunctions( {a:1, b:2, c:function(w){return w.a+w.b;} ) modifies the object and returns it
+//          {a:1, b:2, c:3}
+function evaluateFunctions (w) {
+    "use strict";
+    Object.getOwnPropertyNames(w).forEach(
+        function(val) {
+            if (typeof w[val] === 'function') w[val] = w[val](w);
+        }
+    );
+    return w;
+}
+////////////////////////////////////////////////////////////////////////////////
+// create a displayable, top-level string form for whatever object gets passed in
+// No recursive definition problem since it only does the top level
+// Guesses array type if given .length
+function showObject(w) {
+    "use strict";
+    var result = '';
+    Object.getOwnPropertyNames(w).forEach(
+        function(val) {
+            if (result != '') result = result + ', ';
+            switch (typeof w[val]) {
+                case 'number': result = result + val+':'+w[val]; break;
+                case 'string': result = result + val+':"'+w[val]+'"'; break;
+                case 'object': {
+                    if (typeof w[val].length === 'undefined') {
+                        result = result + val+':object';
+                    } else {
+                        result = result + val+':array['+w[val].length+']';
+                    }
+                    break;
+                }
+                default:  result = result + val+':'+typeof w[val]; break;
+            }
+        }
+    );
+    return '{'+result+'}';
+}
+////////////////////////////////////////////////////////////////////////////////
+function show() {
+    "use strict";
+        // Make the touch interface invisible until the user takes a manual action
+        // This is an absolute requirement for iOS devices to enable sounds from a web page.
+    say('Welcome to DISTAR reader');
+    document.getElementById('button').style.visibility = "hidden";
+    document.getElementById('button').style.position = "absolute";
+    document.getElementById('hide').style.visibility = "visible";
+    document.getElementById('hide').style.position = "static";
+}
+////////////////////////////////////////////////////////////////////////////////
+function highlight(id, state) {
+    "use strict";
+    var c = document.getElementsByTagName('td'),
+        i;
+    for (i=0; i<c.length; i+=1) {
+        if (c[i].id === id) c[i].style.backgroundColor = state;
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+function playName(n) {  // Find the Audio Element associated with this Named Phoneme and play it.
+    "use strict";
+    var name = 'phoneme-' + n,
+        cell = document.getElementById(n);
+//    cell.style.backgroundColor = '#CCC';   // Highlight cell while playing
+//    highlight(n, '#CCC');
+    speak(n);
+//    window.speechSynthesis.onend = function () {highlight(n, '#FFF'); };
+
+//    document.getElementById(name).play();
+//    document.getElementById(name).onended = function () {
+//        highlight(n, '#FFF');
+//        cell.style.backgroundColor = '#FFF'; // Remove highlight when done
+//    };
+}
+////////////////////////////////////////////////////////////////////////////////
+function playThis(e) {  // Find the Audio Element associated with this Element and play it.
+    "use strict";
+    playName(this.id);
+}
+////////////////////////////////////////////////////////////////////////////////
+function init() {    // Install the User Interface Event Handlers
+    "use strict";
+    var i,
+        tags = document.getElementsByTagName('CANVAS'),  // All Canvas
+        f = function (e) {
+            var x = e.touches[0].clientX-this.offsetLeft,
+                y = e.touches[0].clientY-this.offsetTop;
+            plan.closeEnough(x,y);
+            e.stopPropagation();  // Keep touch from scrolling the screen
+            e.preventDefault();
+        },
+        g = function (e) {
+            e.stopPropagation();  // Keep touch from scrolling the screen
+            e.preventDefault();
+        },
+        h = function (e) {
+            var x = e.offsetX,
+                y = e.offsetY;
+            plan.closeEnough(x,y);
+            e.stopPropagation();  // Keep mouse from scrolling the screen
+            e.preventDefault();
+        };
+
+    for (i = 0; i < tags.length; i += 1) {
+        tags[i].addEventListener('mousemove', h);  // use any mouse event available
+        tags[i].addEventListener('click', h);
+      
+        tags[i].addEventListener('touchstart', f);  // Allow Touch to look like Mouse Click
+        tags[i].addEventListener('touchmove',  f);  // Here, Touch looks like MouseOver
+        tags[i].addEventListener('touchend',   g);  // No scrolling
+        tags[i].addEventListener('touchleave', g);  // No scrolling
+        tags[i].addEventListener('touchcancel',g);  // No scrolling
+    }
+
+    initPlan();
+    initUsers();
+    cap();
+}
+window.onload = init;
+
+////////////////////////////////////////////////////////////////////////////////
+function drawArrows() {
+    "use strict";
+    var c = document.getElementsByTagName('canvas'),
+        i;
+    for (i=0; i<c.length; i+=1) if (c[i].id === 'arrow') drawArrow(c[i]);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+function drawArrow(canvas) {
+    "use strict";
+    var ctx = canvas.getContext('2d'),
+        w = canvas.width,
+        h = canvas.height,
+        r = h/5,
+        x = w*.05,
+        y = h/2;
+    ctx.lineWidth = 3;
+    ctx.fillStyle = 'wheat';
+    ctx.strokeStyle = 'black';
+    ctx.fillRect(0,0, w, h);
+    ctx.stroke();
+    ctx.fillStyle = 'black';
+    ctx.moveTo(w*0.05, y);   // shaft
+    ctx.lineTo(w*0.99, y);
+    ctx.stroke();
+    ctx.moveTo(w*0.99, y);   // arrowhead
+    ctx.lineTo(w*0.85, y-r);
+    ctx.lineTo(w*0.85, y+r);
+    ctx.lineTo(w*0.99, y);
+    ctx.stroke();
+    ctx.arc(x, y, r, 0, Math.PI*2, false);  // dot
+    ctx.fill();
+    ctx.stroke();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+function fixMap(m) {
+    "use strict";
+    var result = [],
+        c,
+        i,
+        j = 0;
+    if (typeof m === 'object') return m;    // in case it is already an array
+    for (i=0; i<m.length; i+=1) {
+        c = m.charCodeAt(i);    // ASCII value of character in string
+        if ((0x30<=c) && (c<=0x39)) result[j++] = c - 0x30;             // 0..9
+        if ((0x41<=c) && (c<=0x5A)) result[j++] = c - 0x41 + 10; else   // A..Z
+        if ((0x61<=c) && (c<=0x7A)) result[j++] = c - 0x61 + 36; else   // a..z
+        if ( 0x24==c              ) result[j++] = 62; else              // $
+        if ( 0x23==c              ) result[j++] = 63; else  ;           // #
+    }
+    return result;
+}
+////////////////////////////////////////////////////////////////////////////////
+function makeCurrent(a,b) {
+    "use strict";
+    var d = mergeObjects(a, b, {
+                        background: 'wheat',
+                        color:'black',
+                        cap: 'round',
+                        size: 5,
+                        duration: 0,
+                        scale: 10,
+                        map: '',
+                        limit: 0,
+                    zone: function(c){return c.size*2;},
+                    canvas: function(c){
+                        if (typeof c.canvas === 'string') c.canvas = document.getElementById(c.canvas); 
+                        if (typeof c.canvas === 'null') c.canvas = document.getElementsByTagName('CANVAS')[0];
+                        if (typeof c.canvas === 'function') c.canvas = document.getElementsByTagName('CANVAS')[0];
+                        return c.canvas;
+                    },
+                        cx: function(c){return c.canvas.width/2;},
+                        cy: function(c){return c.canvas.height/2;},
+                        fingerElement: document.getElementById('finger'),
+                        fingerOffsetX: 50,
+                        fingerOffsetY: 30,
+            });
+    return d;
+}
+////////////////////////////////////////////////////////////////////////////////
+function erase(d) {
+    "use strict";
+    d = d || plan.current;
+    var canvas = d.canvas,
+        ctx = canvas.getContext('2d'),
+        background = d.background,
+        w = canvas.width,
+        h = canvas.height;
+    ctx.fillStyle = background;     //  erase the canvas
+    ctx.fillRect(0,0, w,h);
+    d.fingerElement.style.visibility = 'hidden';    // hide the finger
+    msg('');
+}
+////////////////////////////////////////////////////////////////////////////////
+function squig(d) {
+    "use strict";
+    d = d || plan.current;  // If none specified, draw the current squiggle
+    var canvas = d.canvas,
+        ctx = canvas.getContext('2d'),
+        color = d.color,
+        background = d.background,
+        duration = d.duration,  // seconds to draw complete squiggle
+        size = d.size,      // mark width in pixels
+        scale = d.scale,    // pixels per tick
+        cx = d.cx,          // Starting coordinates
+        cy = d.cy,
+        map = d.map,        // direction map for drawing squiggle. string of sixbit
+        w = canvas.width,
+        h = canvas.height,
+        limit = d.limit,
+        angle,
+        i;
+    map = fixMap(map);  // Now an array of directions 0..63 for 0..360 degrees
+
+    if (map.length === 0) {
+        ctx.fillStyle = background;     // null map means erase the canvas
+        ctx.fillRect(0,0, w,h);
+    } else {
+        ctx.lineWidth = d.size;         // Use the map to draw the Squiggle
+        ctx.fillStyle = d.color;        // But only to a certain point
+        ctx.strokeStyle = d.color;      // So we control the speed with a timer or finger
+        ctx.lineCap = d.cap;
+        ctx.beginPath();
+        ctx.moveTo (cx, cy);
+        if ((!d.duration) && (!d.touch)) limit = map.length;
+        for (i=0; i<limit; i+=1) {
+            angle = (map[i]-16)*2*Math.PI/64;   // Clockwise from 0=North on fourth quadrant canvas...
+            cx += scale * Math.cos(angle);      // 0=north  8  G=east  O  W=south  e  m=west  u
+            cy += scale * Math.sin(angle);
+            if (d.size) ctx.lineTo (cx, cy); else ctx.moveTo (cx, cy);  // make zero size forget to draw
+        }
+        ctx.stroke();
+    }
+
+    if (d.finger === 1) {
+        d.fingerElement.style.pointerEvents = 'none';
+        d.fingerElement.style.position = 'absolute';
+        d.fingerElement.style.top = (canvas.offsetTop + cy - d.fingerOffsetY) + 'px';
+        d.fingerElement.style.left = (canvas.offsetLeft + cx - d.fingerOffsetX) + 'px';
+        d.fingerElement.style.visibility = 'visible';
+    } else {
+        d.fingerElement.style.visibility = 'hidden';
+    }
+
+    plan.zoneSize = 0;  // Prevent touch from interfering if it is not being used now
+    if (d.touch) {
+        d.limit += 1;
+        d.map = map;
+        if (d.limit <= map.length) {
+            plan.zoneX = cx;   // location to look for with touch or mouse
+            plan.zoneY = cy;
+            plan.zoneSize = d.zone;
+            return;
+        }
+    } else
+    if (duration > 0) {
+        d.limit += 1;
+        d.map = map;
+        if (map.length === 0) {
+            setTimeout(function(){teach();}, 1000*duration);
+            return;
+        } else
+        if (d.limit <= map.length) {
+            setTimeout(function(){squig();}, 1000*duration/map.length);
+            return;
+        }
+    }
+    if (d.delay) {
+        setTimeout(function(){teach();}, 1000*d.delay);
+    } else {
+        teach();
+    }
+
+}
+////////////////////////////////////////////////////////////////////////////////
+// Synthesize an utterance if possible
+// If there is no speech capability, we just display the text and wait one second.
+// text may be of the form "printed form(spoken form)"
+// Also, random choices among options is possible with text / text / text form.
+function say(text, step) {
+    "use strict";
+    var r = text.split('/'),
+        s = r[Math.floor(Math.random()*r.length)],
+        t = s.split('('),
+        m = new SpeechSynthesisUtterance(),
+        voices = speechSynthesis.getVoices();
+    t[1] = t[1] || t[0];   // if no '(' then display and spoken are the same
+    if (voices.length === 0) {
+        setTimeout(function(){ teach(); }, 1000);    // Computers with no voice just show the text and press on
+    } else {
+        m.text = t[1];
+        m.volume = 1.0;
+        m.rate = 1.0;
+        m.pitch = 1.0;
+        if (step) m.onend = function() { teach(); };
+        speechSynthesis.cancel();   // without this you could get a REALLY long speech
+        speechSynthesis.speak(m);
+    }
+    msg(t[0]);
+}
+////////////////////////////////////////////////////////////////////////////////
+function next(step) {
+    "use strict";
+    var p = plan;
+    step = step || 'i';     // default to item stepping
+    if (step === 'l') {
+        p.lesson += 1;
+        if (typeof p[p.lesson] === 'undefined') {
+            p.lesson = 1;
+            p.task = 1;
+            p.item = 1;
+        }
+    }
+    if (step === 't') {
+        p.task += 1;
+        if (typeof p[p.lesson][p.task] === 'undefined') {
+            next('l');
+            p.task = 1;
+        }
+    }
+    if (step === 'i') {
+        p.item += 1;
+        if (typeof p[p.lesson][p.task][p.item] === 'undefined') {
+            next('t');
+            p.item = 1;
+        }
+    }
+    if (step === 'p') p.point += 1; else p.point = 0;
+    info("Lesson "+p.lesson+', Task '+p.task+', Item '+p.item+', Point '+p.point);
+    cap(plan[plan.lesson].title);
+}
+////////////////////////////////////////////////////////////////////////////////
+function prev(step) {
+    "use strict";
+    var p = plan;
+    step = step || 'i';     // default to item stepping
+    p.point = 0;            // Previous movement always goes to starting point
+    if ((p.lesson === 1) && (p.step === 1) && (p.item === 1)) return;   // Backing up stops at the beginning
+    if (step === 'l') {
+        p.lesson -= 1;
+        if (typeof p[p.lesson] === 'undefined') {
+            p.lesson = 1;
+        }
+        p.task = 1;
+        p.item = 1;
+    }
+    if (step === 't') {
+        p.task -= 1;
+        if (typeof p[p.lesson][p.task] === 'undefined') {
+            prev('l');
+            for(p.task=1; typeof p[p.lesson][p.task+1] !== 'undefined'; p.task+=1);
+        }
+        p.item = 1;
+    }
+    if (step === 'i') {
+        p.item -= 1;
+        if (typeof p[p.lesson][p.task][p.item] === 'undefined') {
+            prev('t');
+            for(p.item=1; typeof p[p.lesson][p.task][p.item+1] !== 'undefined'; p.item+=1);
+        }
+    }
+    info("Lesson "+p.lesson+', Task '+p.task+', Item '+p.item+', Point '+p.point);
+    cap(plan[plan.lesson].title);
+}
+////////////////////////////////////////////////////////////////////////////////
+function teach(pt) {
+    "use strict";
+    var p = plan,
+        cur;
+    if (typeof pt === 'undefined') next('p'); else p.point = pt;
+    cur = p[p.lesson][p.task][p.item];
+    if (typeof cur[p.point] === 'undefined') ; else
+    if (typeof cur[p.point] === 'string') {
+        say (cur[p.point], 1);  // interrupt current speech and say this immediately
+    } else {
+        plan.current = makeCurrent(cur[p.point]);
+        if (typeof plan.current.say === 'string') {
+            say (plan.current.say, 1);  // interrupt current speech and say this immediately
+        }
+        squig();
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+function closeEnough(x, y) {
+    "use strict";
+    if (plan.zoneSize) {
+        var d = (x-plan.zoneX)*(x-plan.zoneX) + (y-plan.zoneY)*(y-plan.zoneY);
+        msg('At ('+x+','+y+') distance is '+Math.sqrt(d).toFixed(2)+' and we need '+plan.zoneSize);
+        if (d < (plan.zoneSize*plan.zoneSize)) {
+            squig();
+        }
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+function speak(text) {
+    "use strict";
+    var msg = new SpeechSynthesisUtterance(),
+        voices = speechSynthesis.getVoices(),
+        names = [],
+        xml =   '<?xml version="1.0"?>'+
+                '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"'+
+                'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'+
+                'xsi:schemaLocation="http://www.w3.org/2001/10/synthesis'+
+                   ' http://www.w3.org/TR/speech-synthesis/synthesis.xsd"'+
+                'xml:lang="en-US"> <phoneme alphabet="ipa" ph="#TEXT#" /> </speech>',
+        ssml = {
+            'ch':   "t&#x259;mei&#x325;&#x27E;ou&#x325;",
+            'ch':   "ch", 
+            'g':    "guh", 
+            'h':    "huh", 
+            'a':    "ah",
+            'e':    "e",
+            'i':    "i",
+            'o':    "o",
+            'u':    "uh",
+            'c':    "kuh",
+            't':    "tah",
+            'r':    "r",
+        };
+//    voices.forEach(function(v, i){names[i] = ' '+v.name;});
+//    alert(names);
+    //msg.voice = voices[0];
+    msg.text = (ssml[text]) ? xml.replace("#TEXT#", ssml[text]) : text;
+    xml = '<speak><phoneme ph="#TEXT#" /></speak>';
+    msg.text = (ssml[text]) ? xml.replace("#TEXT#", ssml[text]) : text;
+    msg.text = (ssml[text]) ? ssml[text] : text;
+    msg.volume = 1.0;
+    msg.rate = 1.0;
+    msg.pitch = 1.0;
+    msg.onend = function () {highlight(text, 'wheat'); };
+    if (!speechSynthesis.speaking) {
+        speechSynthesis.speak(msg);
+        highlight(text, '#CCC');
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+function designer() {
+    "use strict";
+    plan.current = makeCurrent(
+    {cx:150, 
+     map: document.getElementById('designer').value,
+     scale:30, size:2, duration:0, color:"black"}
+        );
+    erase();
+    squig();
+
+}
+var     record = {currentUser: 2, users:[2,8,4], lessons:[1,3,2]},
+        avatars = [ "1F467-1F3FB",   // Girls
+                    "1F467-1F3FC",
+                    "1F467-1F3FD",
+                    "1F467-1F3FE",
+                    "1F467-1F3FF",
+                    "1F467",
+                    "1F466-1F3FB",   // Boys
+                    "1F466-1F3FC",
+                    "1F466-1F3FD",
+                    "1F466-1F3FE",
+                    "1F466-1F3FF",
+                    "1F466"];
+////////////////////////////////////////////////////////////////////////////////
+function avatar(n) {
+    "use strict";
+    var v = document.getElementById('select'+n).value;
+    record.users[n] = v;    // This saves the setting of the selected user
+    document.getElementById('user'+n).innerHTML = '<img src="'+avatars[record.users[n]]+'.png" />';
+    cap(n+' is '+v);
+}
+////////////////////////////////////////////////////////////////////////////////
+function initUsers() {
+    "use strict";
+    var i,
+        g,
+        s,
+        u;
+
+    for (u=0; u<3; u+=1) {
+        for (i=0, s=''; i<avatars.length; i+=1) {
+            g = ('&#x'+avatars[i]+';').replace('-', ';&#x');    // Unicode Glyph works sometimes
+//            g = '<img src="'+avatars[i]+'.png" height=20 />';
+            s += '<option value="'+i+'" '+((record.users[u] === i)?'selected':'')+'>'+g+'</option>';
+        }
+        document.getElementById('select'+u).innerHTML = s;
+
+        for (i=1, s=''; i<=100; i+=1) {
+            s += '<option value="'+i+'" '+((record.lessons[u] === i)?'selected':'')+'>Lesson '+i+'</option>';
+        }
+        document.getElementById('lesson'+u).innerHTML = s;
+        
+        document.getElementById('user'+u).innerHTML = '<img src="'+avatars[record.users[u]]+'.png" />';
+    }
+}
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+var plan = {};
+function initPlan() {
+    "use strict";
+    plan = {
+    lesson: 1,
+    task: 1,
+    item: 1,
+    point: 0,
+    teach: teach,
+    prev: prev,
+    next: next,
+    closeEnough: closeEnough,
+    erase: erase,
+
+    1: {title:"Lesson 1",
+        1: {
+            1: [
+                "This is Lesson 1",
+                "This is the description"
+            ],
+            2: [
+    {map:[]},  // erase
+//    {},          // default test box
+//    {cy:150, map:"066666666660", cap:'butt', size:35},          // letter V
+//    {cy:150, map:"0wwwwwwwwww0", cap:'butt', size:35},          // letter V
+
+//    {cy:250, map:"666666666666", size:35},          // letter V
+//    {cy:250, map:"wwwwwwwwwwww", size:35},          // letter V
+//    {cx:100, map:"02468ACEGIKMOQSUWYacegikmoqsuwy$", scale:30, size:20, duration:5},
+    "here is a blue circle",
+    {cx:150, map:"02468ACEGIKMOQSUWYacegikmoqsuwy$", scale:30, size:2, duration:0, color:"black"},
+    {cx:150, map:"02468ACEGIKMOQSUWYacegikmoqsuwy$", scale:30, size:25, duration:4, color:"blue"},
+    {},
+    {cx:100, map:"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$#", scale:20, size:2, duration:0, color:"black"},
+    "now use your finger like this",
+    {cx:100, map:"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$#", scale:20, size:15, duration:3, delay:2, color:"green", finger:1},
+            ],
+            3: [
+    {},
+    "now it is your turn",
+    {cx:100, map:"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$#", scale:20, size:2, duration:0, color:"black"},
+    {cx:100, map:"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz$#", scale:20, size:15, touch:1, color:"green", finger:1},
+    "well done/very good/you are doing great/good job",
+            ]
+        },
+        2: {
+            1: [
+                "Next Task",
+
+            ],
+            2: [
+
+            ],
+            3: [
+
+            ]
+        }
+    },
+    2: {title: "Lesson 2",
+        1: {
+            1: [
+                "This is Lesson 2",
+
+            ],
+            2: [
+
+            ],
+            3: [
+
+            ]
+        },
+        2: {
+            1: [
+                "Second Task",
+
+            ],
+            2: [
+
+            ],
+            3: [
+
+            ]
+        }
+    }
+};
+    plan.current = makeCurrent(plan[plan.lesson][plan.task][plan.item][plan.point]);
+}
+</script>
+</head>
+<body>
+<h1><b> DISTAR<sup>&reg;</sup> Reader </b></h1>
+
+<center><table id="button" width="60%" border=5 ><tr>
+    <td><center><table><tr>
+        <td>
+            <button id="user0" onclick="record.currentUser=0; show();"></button>
+        </td></tr>
+        <tr><td>
+            <select id="select0" onchange="avatar(0);">
+            </select><br />
+        </td></tr>
+        <tr><td>
+            <select id="lesson0">
+            </select>
+        </td></tr>
+    </table></center>
+    </td>
+
+
+    <td><center><table><tr>
+        <td>
+            <button id="user1" onclick="record.currentUser=1; show();"></button>
+        </td></tr>
+        <tr><td>
+            <select id="select1" onchange="avatar(1);">
+            </select><br />
+        </td></tr>
+        <tr><td>
+            <select id="lesson1">
+            </select>
+        </td></tr>
+    </table></center>
+    </td>
+
+
+    <td><center><table><tr>
+        <td>
+            <button id="user2" onclick="record.currentUser=2; show();"></button>
+        </td></tr>
+        <tr><td>
+            <select id="select2" onchange="avatar(2);">
+            </select><br />
+        </td></tr>
+        <tr><td>
+            <select id="lesson2">
+            </select>
+        </td></tr>
+    </table></center>
+    </td>
+    </tr>
+</table></center>
+<div id="log"></div>
+<div id="hide" style="visibility:hidden; position:absolute;">
+<table width="100%"><tr>
+    <td width="15%" style="background-color:green;" onclick="plan.erase();plan.prev();"> &nbsp;<br /> BACK <br />&nbsp;</td>
+    <td width="70%" style="text-align: center;"     onclick="plan.erase();teach(0);"> <div id="msg"></div>&nbsp;<br /><div id="info">&nbsp;</div></td>
+    <td width="15%" style="background-color:green"  onclick="plan.erase();plan.next();teach(0);"> &nbsp;<br /> NEXT <br />&nbsp;</td>
+</tr></table>
+<center>
+    <br />
+    <br />
+<img id="finger" style="position: absolute; visibility:hidden; opacity: 0.4; " src="finger.png"></img>
+    <canvas id='sq' height="600" width="600" ></canvas>
+<br />
+<input type="text" id='designer' oninput="designer();" />Use this area to test drawing maps.<br />
+<input type="text" id='speaker' oninput="say(document.getElementById('speaker').value);" />Use this area to test speech synthesis.<br />
+</center>
+</div>
+<center>
+<div id="cap" width="100%" style="background-color: orange">This WebApp Requires JavaScript to be Enabled.</div>
+</center>
+</body>
+</html>
